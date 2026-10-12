@@ -1,0 +1,37 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-container {
+  flex: 1;
+}
+
+.login-alert {
+  background: #fff3cd;
+  color: #856404;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+.toast-action,
+.toast-dismiss {
+  background: transparent;
+  border: 0;
+  color: var(--secondary-yellow);
+  cursor: pointer;
+  font: inherit;
+}
+
+.toast-action {
+  text-decoration: underline;
+}
+
+.toast-dismiss {
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+}

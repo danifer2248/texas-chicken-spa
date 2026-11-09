@@ -12,7 +12,7 @@ import { createOrder, getSession, signOut } from './lib/supabase.js'
 const storedCart = () => {
   try {
     const value = JSON.parse(localStorage.getItem('texasCart') || '[]')
-    return Array.isArray(value) ? value : []
+    return Array.isArray(value) ? value.flatMap((item) => {\n      const product = products.find((entry) => entry.id === item.productId || entry.id === item.id || entry.name === item.name)\n      const qty = Number(item.qty)\n      return product && Number.isInteger(qty) && qty > 0 && qty <= 50 ? [{ ...product, productId: product.id, id: product.id, qty }] : []\n    }) : []
   } catch { return [] }
 }
 

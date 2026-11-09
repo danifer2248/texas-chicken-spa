@@ -147,7 +147,7 @@ begin
 
   if jsonb_typeof(p_payload) <> 'object'
      or not (p_payload ? 'items')
-     or exists (select 1 from jsonb_object_keys(p_payload) as k where k <> 'items') then
+     or exists (select 1 from jsonb_object_keys(p_payload) as keys(key) where key <> 'items') then
     raise exception 'INVALID_ORDER_FIELDS' using errcode = '22023';
   end if;
 
@@ -166,7 +166,7 @@ begin
     if jsonb_typeof(v_item) <> 'object'
        or not (v_item ? 'product_id')
        or not (v_item ? 'quantity')
-       or exists (select 1 from jsonb_object_keys(v_item) as k where k not in ('product_id', 'quantity'))
+       or exists (select 1 from jsonb_object_keys(v_item) as keys(key) where key not in ('product_id', 'quantity'))
        or jsonb_typeof(v_item->'product_id') <> 'string'
        or jsonb_typeof(v_item->'quantity') <> 'number' then
       raise exception 'INVALID_ITEM_FIELDS' using errcode = '22023';

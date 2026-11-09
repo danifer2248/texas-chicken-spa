@@ -7,42 +7,45 @@ import { AuthPage } from './components/AuthPage.jsx'
 import { Footer } from './components/Footer.jsx'
 import { Toast } from './components/Toast.jsx'
 import { CheckoutModal } from './components/CheckoutModal.jsx'
+import { createOrder, getSession, signOut } from './lib/supabase.js'
 
 const storedCart = () => {
   try {
     const value = JSON.parse(localStorage.getItem('texasCart') || '[]')
     return Array.isArray(value) ? value : []
-  } catch {
-    return []
-  }
+  } catch { return [] }
 }
 
 const basePath = import.meta.env.BASE_URL
 const pagePath = (path) => `${basePath}${path}`
-
 const currentPage = () => {
   const pathname = window.location.pathname.toLowerCase()
   const path = (basePath !== '/' && pathname.startsWith(basePath.toLowerCase())
-    ? pathname.slice(basePath.length - 1)
-    : pathname).replace(/\/$/, '') || '/'
+    ? pathname.slice(basePath.length - 1) : pathname).replace(/\/$/, '') || '/'
   if (path === '/' || path === '/index.html') return 'home'
   if (path === '/menu' || path === '/menu.html') return 'menu'
   if (path === '/login' || path === '/login.html') return 'login'
   if (path === '/registro' || path === '/registro.html') return 'register'
   return 'not-found'
 }
-
 const applicationPaths = new Set(['', 'index.html', 'menu', 'menu.html', 'login', 'login.html', 'registro', 'registro.html']
   .map((path) => pagePath(path).toLowerCase().replace(/\/$/, '') || '/'))
 
 function App() {
   const [page, setPage] = useState(currentPage)
-  const [loggedIn, setLoggedIn] = useState(() => localStorage.getItem('texasLoggedIn') === 'true')
+  const [session, setSession] = useState(null)
+  const [authReady, setAuthReady] = useState(false)
+  const loggedIn = Boolean(session?.access_token)
   const [cart, setCart] = useState(storedCart)
   const [cartOpen, setCartOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const [order, setOrder] = useState(null)
   const [redirectReason, setRedirectReason] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    getSession().then(setSession).catch(() => setSession(null)).finally(() => setAuthReady(true))
+  }, [])
 
   useEffect(() => {
     const onPopState = () => setPage(currentPage())
@@ -51,7 +54,7 @@ function App() {
       const anchor = event.target.closest('a[href]')
       if (!anchor || anchor.target || anchor.hasAttribute('download') || anchor.rel === 'external') return
       const url = new URL(anchor.href, window.location.href)
-      if (url.origin !== window.location.origin || url.pathname === window.location.pathname && url.hash) return
+      if (url.origin !== window.location.origin || (url.pathname === window.location.pathname && url.hash)) return
       if (url.pathname.startsWith('/api/') || (!applicationPaths.has(url.pathname.toLowerCase()) && /\.[^/]+$/.test(url.pathname))) return
       event.preventDefault()
       window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`)
@@ -67,19 +70,12 @@ function App() {
     }
   }, [])
 
-  useEffect(() => {
-    localStorage.setItem('texasCart', JSON.stringify(cart))
-  }, [cart])
-
+  useEffect(() => { localStorage.setItem('texasCart', JSON.stringify(cart)) }, [cart])
   useEffect(() => {
     if (page !== 'login') return
     const reason = sessionStorage.getItem('loginRedirectReason')
-    if (reason) {
-      setRedirectReason(reason)
-      sessionStorage.removeItem('loginRedirectReason')
-    }
+    if (reason) { setRedirectReason(reason); sessionStorage.removeItem('loginRedirectReason') }
   }, [page])
-
   useEffect(() => {
     const closeCart = () => setCartOpen(false)
     window.addEventListener('click', closeCart)
@@ -94,61 +90,68 @@ function App() {
       return
     }
     setCart((current) => {
-      const existing = current.find((item) => item.name === product.name)
+      const existing = current.find((item) => item.productId === product.id)
       return existing
-        ? current.map((item) => item.name === product.name ? { ...item, qty: item.qty + 1 } : item)
-        : [...current, { ...product, id: Date.now() + Math.random(), qty: 1 }]
+        ? current.map((item) => item.productId === product.id ? { ...item, qty: Math.min(item.qty + 1, 50) } : item)
+        : [...current, { ...product, productId: product.id, id: product.id, qty: 1 }]
     })
     setToast({ message: `${product.name} agregado al pedido`, action: 'Ver carrito' })
   }
 
-  const changeQuantity = (id, change) => {
-    setCart((current) => current
-      .map((item) => item.id === id ? { ...item, qty: item.qty + change } : item)
-      .filter((item) => item.qty > 0))
-  }
-
+  const changeQuantity = (id, change) => setCart((current) => current
+    .map((item) => item.id === id ? { ...item, qty: Math.min(50, item.qty + change) } : item)
+    .filter((item) => item.qty > 0))
   const removeProduct = (id) => setCart((current) => current.filter((item) => item.id !== id))
 
-  const checkout = () => {
-    const count = cart.reduce((sum, item) => sum + item.qty, 0)
-    const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0)
-    const number = Math.floor(Math.random() * 90000) + 10000
-    setOrder({ number: `#TX-${number}`, count, total: total.toFixed(2) })
-    setCart([])
-    setCartOpen(false)
+  const checkout = async () => {
+    if (!loggedIn) {
+      sessionStorage.setItem('loginRedirectReason', 'Inicia sesión para realizar tu pedido.')
+      window.history.pushState({}, '', pagePath('login.html'))
+      setPage('login')
+      return
+    }
+    if (!cart.length || busy) return
+    setBusy(true)
+    try {
+      const savedOrder = await createOrder(cart.map((item) => ({
+        product_id: item.productId,
+        quantity: item.qty,
+      })))
+      setOrder({
+        number: `#TX-${String(savedOrder.id).slice(0, 8).toUpperCase()}`,
+        count: cart.reduce((sum, item) => sum + item.qty, 0),
+        total: Number(savedOrder.total).toFixed(2),
+        status: savedOrder.status,
+      })
+      setCart([])
+      setCartOpen(false)
+    } catch (error) {
+      setToast({ message: error.message || 'No se pudo registrar el pedido.', action: '' })
+    } finally { setBusy(false) }
   }
 
-  const logout = () => {
-    localStorage.removeItem('texasLoggedIn')
-    setLoggedIn(false)
+  const logout = async () => {
+    try { await signOut() } catch (error) { setToast({ message: error.message, action: '' }) }
+    setSession(null)
     setCartOpen(false)
-    window.alert('Has cerrado sesión.')
     window.history.pushState({}, '', pagePath('index.html'))
     setPage('home')
   }
 
-  const authenticate = (message) => {
-    localStorage.setItem('texasLoggedIn', 'true')
-    setLoggedIn(true)
+  const authenticate = (nextSession, message) => {
+    setSession(nextSession)
     window.alert(message)
     window.history.pushState({}, '', pagePath('menu.html'))
     setPage('menu')
   }
 
+  if (!authReady) return <div className="app-shell"><main className="main-container"><p>Verificando sesión...</p></main></div>
+
   return (
     <div className="app-shell">
-      <Navbar
-        page={page}
-        loggedIn={loggedIn}
-        cart={cart}
-        cartOpen={cartOpen}
-        onToggleCart={() => setCartOpen((open) => !open)}
-        onChangeQuantity={changeQuantity}
-        onRemoveProduct={removeProduct}
-        onCheckout={checkout}
-        onLogout={logout}
-      />
+      <Navbar page={page} loggedIn={loggedIn} cart={cart} cartOpen={cartOpen}
+        onToggleCart={() => setCartOpen((open) => !open)} onChangeQuantity={changeQuantity}
+        onRemoveProduct={removeProduct} onCheckout={checkout} onLogout={logout} />
       {page === 'home' && <HomePage />}
       {page === 'menu' && <MenuPage products={products} onAddProduct={addProduct} />}
       {(page === 'login' || page === 'register') && (
@@ -160,8 +163,8 @@ function App() {
       <Footer page={page} />
       {toast && <Toast message={toast.message} action={toast.action} onAction={() => setCartOpen(true)} onClose={() => setToast(null)} />}
       {order && <CheckoutModal order={order} onClose={() => setOrder(null)} />}
+      {busy && <div className="toast active" role="status">Registrando tu pedido de forma segura…</div>}
     </div>
   )
 }
-
 export default App

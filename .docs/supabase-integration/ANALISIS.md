@@ -15,17 +15,42 @@ Fuente: `.docs/TEXAS-CRUD/Texas_Chicken_Informe_CRUD_Seguridad.pdf` (40,970 byte
 
 ## Modelo implementado
 
-Los nombres de tabla/columna y restricciones SQL detallados abajo son decisiones de implementación cuando el PDF no especifica tipos o nulabilidad. Moneda: bolivianos (Bs). Montos en `numeric(10,2)`, no coma flotante.
+Los nombres de tabla/columna y restricciones SQL detallados abajo son decisiones de implementación cuando el diagrama no especifica tipos o nulabilidad. Moneda: bolivianos (Bs). Precios unitarios en `numeric(10,2)` y totales/subtotales en `numeric(14,2)`, no coma flotante.
 
 | Tabla | Atributos, tipo y reglas |
 | --- | --- |
 | `public.profiles` | `id uuid` PK y FK a `auth.users(id)`; `full_name text` obligatorio y no vacío; `phone text` opcional; `created_at`, `updated_at timestamptz` automáticos. Se crea al registrar la cuenta. El nombre/teléfono no son credenciales ni determinan roles. |
 | `public.products` | `id uuid` PK generado; `name text` obligatorio y único; `description text` obligatorio; `category text` obligatorio; `price numeric(10,2)` obligatorio y no negativo; `image text` obligatorio; `alt text` nullable; `is_active boolean not null default true`; fechas automáticas. Los seis campos de catálogo vienen de `src/data/products.js`; `is_active` implementa la baja lógica propuesta. |
-| `public.orders` | `id uuid` PK; `order_number bigint` único y generado por identidad; `client_id uuid` obligatorio FK a `auth.users(id)`; `delivery_type` restringido a `pickup`/`delivery`; `address text` nullable, obligatoria para delivery; `contact_phone text` obligatorio; `comment text` nullable; `total numeric(10,2)` generado por el servidor; `status` restringido a `pending`, `confirmed`, `preparing`, `delivered`, `cancelled`; `is_active boolean not null default true`; `created_at`, `updated_at timestamptz` automáticos. `client_id` no es nullable porque la aplicación exige sesión para comprar. |
-| `public.order_items` | `id uuid` PK; `order_id uuid` FK a `orders(id)`; `product_id uuid` FK a `products(id)`; `product_name text` conserva el nombre al comprar; `quantity integer` entre 1 y 99; `unit_price numeric(10,2)` no negativo; `subtotal numeric(10,2)` calculado como cantidad × precio. Unicidad por `(order_id, product_id)`. |
+| `public.orders` | `id uuid` PK; `order_number bigint` único e `IDENTITY ALWAYS`; `client_id uuid not null` FK a `auth.users(id)` con `ON DELETE RESTRICT`; `delivery_type` restringido a `pickup`/`delivery`; `address text` nullable y obligatoria para delivery; `contact_name` y `contact_phone` obligatorios; `comment text` nullable; `total numeric(14,2) not null default 0`, calculado/actualizado por el servidor; `status text not null default 'pending'` con estados permitidos; `is_active boolean not null default true`; `created_at`, `updated_at timestamptz` automáticos. |
+| `public.order_items` | `id uuid` PK; `order_id uuid not null` FK a `orders(id)` con `ON DELETE CASCADE`; `product_id uuid not null` FK a `products(id)` con `ON DELETE RESTRICT`; `product_name text` conserva el nombre al comprar; `quantity integer not null` entre 1 y 99; `unit_price numeric(10,2) not null` guarda el precio aplicado; `subtotal numeric(14,2)` generado como cantidad × precio. Unicidad por `(order_id, product_id)`. |
 | `private.user_roles` | `user_id uuid` PK/FK a `auth.users`; `role text` limitado a `staff`/`admin`. Esquema no expuesto a la API y sin grants a clientes. La asignación se hace desde SQL Editor como administradora del proyecto, nunca desde el frontend. Sin fila, la persona es cliente. |
 
-Las relaciones son `auth.users 1—1 profiles`, `auth.users 1—N orders`, `orders 1—N order_items` y `products 1—N order_items`; así `orders` y `products` tienen una relación N—M resuelta por `order_items`. Las líneas se borran en cascada solo junto al pedido físico; una línea conserva su producto con FK restrictiva. Un usuario Auth con pedidos no se puede borrar físicamente; pedido y producto se cancelan/desactivan. No se implementa borrado de datos personales hasta que el negocio defina la retención legal/comercial.
+Las relaciones son `auth.users 1—1 profiles`, `auth.users 1—0..N orders`, `orders 1—1..N order_items` y `products 1—0..N order_items`; así `orders` y `products` tienen una relación N—M resuelta por `order_items`. Cada línea requiere exactamente un pedido y un producto; las líneas se borran en cascada solo junto al pedido físico y una línea conserva su producto con FK restrictiva. El RPC valida de 1 a 50 líneas antes de crear el pedido, por lo que todo pedido originado por el flujo autorizado cumple el mínimo 1..N. Un usuario Auth con pedidos no se puede borrar físicamente; pedido y producto se cancelan/desactivan.
+
+## Validación contra la imagen “Cambio sugerido”
+
+La imagen recibida propone una primera versión con cuenta obligatoria y estas cardinalidades: Cuenta autenticada `1 → 0..N` Pedido; Pedido `1 → 1..N` Línea; Producto `1 → 0..N` Línea. La migración remota y el código implementan ese modelo:
+
+| Nombre del diagrama | Implementación | Verificación |
+| --- | --- | --- |
+| Cuenta autenticada `PK id` | `auth.users.id`; `orders.client_id uuid NOT NULL` referencia la cuenta con `ON DELETE RESTRICT`. No se duplica la identidad en una tabla `Cuenta`. `profiles.id` es extensión 1:1 opcional para datos de contacto. | Catálogo remoto confirma FK y `NOT NULL`; el pedido de prueba guardó el UUID de su sesión autenticada. |
+| Pedido `PK id`, `FK cliente_id`, `numero_pedido`, `estado`, `total_calculado`, `fecha_creacion` | `public.orders`: `id`, `client_id`, `order_number`, `status`, `total`, `created_at`. `client_id`, `status` y `total` son `NOT NULL`; `order_number` es identidad única; `status` inicia `pending` y tiene `CHECK` de estados. `total` es `numeric(14,2)`. | `verify-order-model.sql`; RPC cliente creó pedido con dueño, número, total y estado esperados. |
+| Línea de pedido `PK id`, `FK pedido_id`, `FK producto_id`, `cantidad`, `precio_unitario_aplicado` | `public.order_items`: `id`, `order_id`, `product_id`, `quantity`, `unit_price`. Las tres referencias/datos requeridos son `NOT NULL`; `unit_price numeric(10,2)` tiene `CHECK >= 0`; una línea por producto por pedido. | Catálogo remoto confirma FKs/nullabilidad; prueba guardó precio del catálogo y rechazó un `unit_price` enviado por cliente. |
+| Producto `PK id`, `nombre`, `precio_vigente`, `activo` | `public.products`: `id`, `name`, `price numeric(10,2)`, `is_active`; precio no negativo y baja lógica con `is_active`. | Menú/CRUD probado; el RPC solo acepta productos activos y lee `products.price`. |
+
+La imagen no incluye subtotal; se mantiene como campo adicional generado en la base (`quantity * unit_price`). Sus operandos son `NOT NULL`, el valor no lo puede escribir el cliente, y la consulta remota muestra `GENERATED ALWAYS`. La metadata de `information_schema` reporta `is_nullable = YES` para esa columna generada, aunque la expresión no puede producir `NULL` con esos operandos.
+
+## Cálculo y protección de importes/estado
+
+`src/data/supabaseApi.js:createOrder` envía al RPC solo `product_id` y `quantity`, más contacto y tipo/datos de entrega; no envía precio, subtotal, total, estado, cliente, número ni fecha. `public.create_order` en la migración:
+
+1. Requiere sesión autenticada, 1–50 productos y cantidades 1–99; rechaza objetos de línea con campos adicionales.
+2. Bloquea cada fila de catálogo con `FOR SHARE`, exige que el producto siga activo y lee su `name` y `price` vigentes.
+3. Inserta `unit_price` desde `products.price`; `subtotal` se genera en la base y `orders.total` se suma desde las líneas dentro de la misma transacción. `status` usa el default `pending` y el número sale de la identidad.
+
+En el proyecto remoto, `authenticated` tiene `SELECT` pero no tiene privilegios directos `INSERT`, `UPDATE` ni `DELETE` sobre `orders`. La creación se hace por el RPC; el cambio de estado se hace por `change_order_status`, que comprueba `is_staff()`. `cancel_order` es la única excepción de estado para cliente y solo cancela su pedido todavía `pending`. `order_items` no concede escrituras directas a clientes.
+
+La consulta SQL persistente de inspección (solo lectura) está en `.docs/supabase-integration/verify-order-model.sql`; la prueba autenticada y autolimpiable está en `.docs/supabase-integration/verify-order-security.ps1`. Las 8 comprobaciones enfocadas pasaron: metadatos no asignan rol admin; el RPC fija dueño/estado/total/número; precio aplicado y subtotal coinciden con catálogo; se rechazan alta directa con total/estado falsos, edición directa de total/estado, RPC de cambio de estado para cliente y precio por línea manipulado. La prueba anterior cubrió además el CRUD/RLS general. La prueba enfocada limpia la cuenta/pedido temporal y verifica que no queden registros.
 
 Checkout es una única función transaccional: recibe IDs de producto y cantidades, comprueba sesión, rango y estado activo, ignora precios/totales/estado/IDs/fechas enviados desde el navegador, copia precio y nombre del catálogo y guarda pedido/líneas juntos. El backend fija `pending`, número, total y fechas. Si un producto deja de existir o la transacción falla, no queda un pedido parcial.
 
@@ -55,12 +80,14 @@ El rol se mantiene en `private.user_roles` y se consulta mediante funciones SQL 
 
 - El código inicial no tenía backend/Supabase: `localStorage` guardaba carrito y una marca de login, y el checkout generaba un número aleatorio. La integración reemplazó la marca por `supabase.auth`; el carrito sigue guardado localmente por usuario y pedidos/perfiles viven en Supabase.
 - La app exige login para añadir al carrito, por eso el vínculo cliente-pedido es obligatorio. No se habilitan compras anónimas que el flujo actual no soporta.
-- El PDF menciona datos de contacto, dirección y comentario como propuestas, pero el checkout actual no los solicita. Se incluyen teléfono y dirección de entrega, se ofrece comentario opcional, y se conserva una copia del teléfono en el pedido. No se solicita dato de pago.
+- El PDF menciona datos de contacto, dirección y comentario como propuestas; el prototipo inicial no los solicitaba. El checkout integrado incluye teléfono y dirección de entrega, ofrece comentario opcional y conserva una copia del teléfono en el pedido. No se solicita dato de pago.
 - El catálogo inicial se inserta de forma idempotente; menú, carrito y checkout usan los UUID persistentes de Supabase.
 - La CLI autenticada encontró una sola organización, `Texas Chicken`, y un proyecto coincidente `texas-chicken-spa` (`wueuktufolitrkwpjlex`), activo y saludable en `us-west-2`. Se enlazó ese proyecto; `migration list --remote` y una consulta a `information_schema` confirmaron que antes de la migración no tenía historial ni tablas públicas. El esquema inicial ya está aplicado; el detalle comprobado está en `CHECKLIST.md`.
 - El CLI de proyectos no mostró el plan ni el tamaño de cómputo del recurso existente. No se creó ningún proyecto, no se cambió el tamaño de cómputo ni se activaron servicios pagos. La aplicación usa Auth y Postgres existentes y no configura Storage, Functions, backups ni alta disponibilidad.
 - La región `us-west-2` se conserva para no crear un recurso duplicado; la CLI actual sí ofrece `sa-east-1`, aunque no se migró una base ya creada.
-- La prueba remota usó cuatro cuentas temporales con sesiones normales y cubrió 31 comprobaciones CRUD/RLS. Todas pasaron; la consulta posterior confirmó cero cuentas, roles, pedidos o productos temporales. La compilación limpia con Node 22 y la auditoría de dependencias también pasaron; ver `CHECKLIST.md`.
+- La prueba remota general usó cuatro cuentas temporales con sesiones normales y cubrió 31 comprobaciones CRUD/RLS; la prueba enfocada actual añadió 8 ataques de cliente con una sesión separada. Todas pasaron y se confirmó la limpieza. La instalación/build con Node 22 y la auditoría de dependencias también pasaron; ver `CHECKLIST.md`.
+- La imagen ER llegó en el mensaje y se comparó con el esquema; no hay copia de esa imagen dentro del repositorio. Los scripts remotos son de verificación, no migraciones.
+- Faltan pruebas visuales del flujo en navegador con el dominio final y la configuración real de correo/redirects. También falta asignar `admin` a la cuenta real; los permisos RLS no dependen de ocultar la ruta `/admin`.
 - Falta acordar retención/anonimización de datos personales; por ahora se restringe acceso y se prohíbe borrado físico desde la aplicación.
 
 ## Configuración local y remota

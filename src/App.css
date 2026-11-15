@@ -35,3 +35,247 @@
   font-size: 1.4rem;
   line-height: 1;
 }
+
+.data-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 34px 5%;
+}
+
+.data-state {
+  margin: 14px 0;
+  padding: 12px 15px;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--text-dark);
+}
+
+.data-error {
+  color: #8a0000;
+  border: 1px solid #e8b8b8;
+}
+
+.config-notice {
+  padding: 10px 5%;
+  background: #fff3cd;
+  color: #664d03;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.session-loading {
+  position: fixed;
+  z-index: 10001;
+  top: 82px;
+  right: 16px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 8px #0002;
+  font-size: 0.85rem;
+}
+
+.order-list,
+.staff-product-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.order-card,
+.staff-product-form,
+.staff-product-row {
+  padding: 18px;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 3px 12px #0000000a;
+}
+
+.order-card h2,
+.order-card h3,
+.catalog-panel h2,
+.staff-product-form h3 {
+  margin-bottom: 10px;
+}
+
+.order-card p {
+  margin: 7px 0;
+}
+
+.order-card-heading,
+.staff-product-row,
+.staff-actions,
+.status-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.order-card-heading time,
+.staff-product-row p {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.order-status {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff3cd;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.status-confirmed { background: #dceeff; }
+.status-preparing { background: #eee3ff; }
+.status-delivered { background: #d9f2df; }
+.status-cancelled { background: #eee; }
+
+.order-lines {
+  margin: 14px 0;
+  list-style: none;
+  border-top: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+}
+
+.order-lines li,
+.checkout-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.status-controls {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.status-controls select,
+.staff-form-grid input,
+.staff-form-grid select,
+.staff-form-grid textarea,
+.checkout-modal-content select,
+.checkout-modal-content textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #fff;
+  font: inherit;
+}
+
+.status-controls select {
+  width: auto;
+  min-width: 170px;
+}
+
+.staff-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 22px;
+  border-bottom: 1px solid #ddd;
+}
+
+.staff-tabs button,
+.text-button {
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--accessible-red-text);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.staff-tabs button[aria-selected='true'] {
+  border-bottom: 3px solid var(--primary-red);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.staff-product-form {
+  margin-top: 18px;
+}
+
+.staff-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.staff-form-grid label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.staff-form-wide {
+  grid-column: 1 / -1;
+}
+
+.staff-actions {
+  justify-content: flex-start;
+  margin-top: 14px;
+}
+
+.staff-product-row.inactive {
+  opacity: 0.7;
+}
+
+.checkout-modal-content {
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  text-align: left;
+}
+
+.checkout-modal-content > h2,
+.checkout-modal-content > p,
+.checkout-modal-content > .btn-submit {
+  text-align: center;
+}
+
+.checkout-modal-content .form-group input,
+.checkout-modal-content .form-group select,
+.checkout-modal-content .form-group textarea {
+  width: 100%;
+}
+
+.checkout-items {
+  margin-bottom: 10px;
+  list-style: none;
+}
+
+.checkout-modal-content .btn-submit:disabled,
+.staff-actions button:disabled,
+.status-controls button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+@media (max-width: 640px) {
+  .data-page {
+    padding: 24px 4%;
+  }
+
+  .order-card-heading,
+  .staff-product-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .staff-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-form-wide {
+    grid-column: auto;
+  }
+
+  .checkout-modal-content {
+    padding: 24px 18px;
+  }
+}

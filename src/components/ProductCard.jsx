@@ -6,7 +6,7 @@ export function ProductCard({ product, onAddProduct }) {
         <h4 className="card-title">{product.name}</h4>
         <p className="card-desc">{product.description}</p>
         <div className="card-footer">
-          <span className="price">Bs. {product.price.toFixed(2)}</span>
+          <span className="price">Bs. {Number(product.price).toFixed(2)}</span>
           <button className="btn-add" type="button" onClick={() => onAddProduct(product)}>Agregar</button>
         </div>
       </div>

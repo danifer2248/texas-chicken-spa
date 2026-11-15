@@ -6,13 +6,17 @@ const links = [
   { page: 'menu', label: 'Menú', href: '/menu.html' },
   { page: 'login', label: 'Iniciar Sesión', href: '/login.html', auth: 'guest' },
   { page: 'register', label: 'Registrarse', href: '/registro.html', auth: 'guest' },
+  { page: 'orders', label: 'Mis pedidos', href: '/pedidos.html', auth: 'customer' },
+  { page: 'admin', label: 'Administración', href: '/admin.html', auth: 'staff' },
 ]
 
-function NavbarLinks({ page, loggedIn, open, onLogout }) {
+function NavbarLinks({ page, loggedIn, isStaff, open, onLogout }) {
   return (
     <ul className={`nav-links${open ? ' active' : ''}`}>
       {links.map((link) => {
         if (link.auth === 'guest' && loggedIn) return null
+        if (link.auth === 'customer' && !loggedIn) return null
+        if (link.auth === 'staff' && !isStaff) return null
         return (
           <li key={link.page}>
             <a className={page === link.page ? 'active' : undefined} href={`${import.meta.env.BASE_URL}${link.href.slice(1)}`}>
@@ -21,12 +25,12 @@ function NavbarLinks({ page, loggedIn, open, onLogout }) {
           </li>
         )
       })}
-      {loggedIn && <li><button className="btn-logout" onClick={onLogout}>Cerrar Sesión</button></li>}
+      {loggedIn && <li><button className="btn-logout" type="button" onClick={onLogout}>Cerrar Sesión</button></li>}
     </ul>
   )
 }
 
-export function Navbar({ page, loggedIn, cart, cartOpen, onToggleCart, onChangeQuantity, onRemoveProduct, onCheckout, onLogout }) {
+export function Navbar({ page, loggedIn, isStaff, cart, cartOpen, onToggleCart, onChangeQuantity, onRemoveProduct, onCheckout, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
@@ -44,21 +48,23 @@ export function Navbar({ page, loggedIn, cart, cartOpen, onToggleCart, onChangeQ
       >
         ☰
       </button>
-      <NavbarLinks page={page} loggedIn={loggedIn} open={mobileOpen} onLogout={onLogout} />
-      <div className="nav-right-actions">
-        <div className="cart-container" onClick={(event) => event.stopPropagation()}>
-          <button className="btn-cart" type="button" aria-label={`Carrito de compras, ${cart.reduce((sum, item) => sum + item.qty, 0)} productos`} aria-expanded={cartOpen} onClick={onToggleCart}>
-            🛒 <span className="cart-text-mobile-hide">Carrito</span> (<span>{cart.reduce((sum, item) => sum + item.qty, 0)}</span>)
-          </button>
-          <CartDropdown
-            cart={cart}
-            open={cartOpen}
-            onChangeQuantity={onChangeQuantity}
-            onRemoveProduct={onRemoveProduct}
-            onCheckout={onCheckout}
-          />
+      <NavbarLinks page={page} loggedIn={loggedIn} isStaff={isStaff} open={mobileOpen} onLogout={onLogout} />
+      {loggedIn && (
+        <div className="nav-right-actions">
+          <div className="cart-container" onClick={(event) => event.stopPropagation()}>
+            <button className="btn-cart" type="button" aria-label={`Carrito de compras, ${cart.reduce((sum, item) => sum + item.qty, 0)} productos`} aria-expanded={cartOpen} onClick={onToggleCart}>
+              🛒 <span className="cart-text-mobile-hide">Carrito</span> (<span>{cart.reduce((sum, item) => sum + item.qty, 0)}</span>)
+            </button>
+            <CartDropdown
+              cart={cart}
+              open={cartOpen}
+              onChangeQuantity={onChangeQuantity}
+              onRemoveProduct={onRemoveProduct}
+              onCheckout={onCheckout}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </nav>
   )
 }

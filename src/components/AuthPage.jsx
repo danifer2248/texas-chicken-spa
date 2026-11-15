@@ -2,34 +2,70 @@ import { useState } from 'react'
 import { FormContainer } from './FormContainer.jsx'
 import { FormGroup } from './FormGroup.jsx'
 import { PasswordField } from './PasswordField.jsx'
+import { requireSupabase } from '../lib/supabase.js'
 
-export function AuthPage({ page, redirectReason, onAuthenticate }) {
+export function AuthPage({ page, redirectReason, onAuthenticated }) {
   const isRegister = page === 'register'
   const [values, setValues] = useState({ name: '', email: '', password: '' })
   const [errors, setErrors] = useState({})
+  const [formError, setFormError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const update = (field) => (event) => {
     const value = event.target.value
     setValues((current) => ({ ...current, [field]: value }))
     if (value.trim()) setErrors((current) => ({ ...current, [field]: '' }))
+    setFormError('')
+    setNotice('')
   }
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault()
+    setFormError('')
+    setNotice('')
     const nextErrors = {}
     if (isRegister && !values.name.trim()) nextErrors.name = 'Este campo es obligatorio.'
     if (!values.email.trim()) nextErrors.email = 'Este campo es obligatorio.'
-    if (!values.password.trim()) nextErrors.password = 'Este campo es obligatorio.'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) nextErrors.email = 'Escribe un correo válido.'
+    if (!values.password) nextErrors.password = 'Este campo es obligatorio.'
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
-    onAuthenticate(isRegister ? '¡Cuenta creada con éxito!' : '¡Inicio de sesión exitoso!')
+
+    setSubmitting(true)
+    try {
+      const client = requireSupabase()
+      const result = isRegister
+        ? await client.auth.signUp({
+            email: values.email.trim(),
+            password: values.password,
+            options: {
+              data: { full_name: values.name.trim() },
+              emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
+            },
+          })
+        : await client.auth.signInWithPassword({ email: values.email.trim(), password: values.password })
+
+      if (result.error) throw result.error
+      if (result.data.session) {
+        onAuthenticated()
+      } else if (isRegister) {
+        setNotice('Revisa tu correo para confirmar la cuenta y luego inicia sesión.')
+      } else {
+        setNotice('Si la cuenta requiere confirmación, revisa tu correo antes de iniciar sesión.')
+      }
+    } catch (error) {
+      setFormError(error.message || 'No se pudo completar la autenticación.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <main className="main-container">
       <FormContainer
         title={isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}
-        notice={!isRegister ? redirectReason : ''}
+        notice={redirectReason || notice}
         footer={(
           <>
             {isRegister ? '¿Ya tienes cuenta? ' : '¿No tienes cuenta? '}
@@ -40,6 +76,7 @@ export function AuthPage({ page, redirectReason, onAuthenticate }) {
         )}
       >
         <form onSubmit={submit} noValidate>
+          {formError && <p className="login-alert data-error" role="alert">{formError}</p>}
           {isRegister && (
             <FormGroup
               id="nombre"
@@ -65,21 +102,9 @@ export function AuthPage({ page, redirectReason, onAuthenticate }) {
             onChange={update('password')}
             error={errors.password}
           />
-          {!isRegister && (
-            <div className="form-options">
-              <a
-                href="#"
-                className="forgot-link"
-                onClick={(event) => {
-                  event.preventDefault()
-                  window.alert('Instrucciones enviadas a tu correo para restablecer la contraseña.')
-                }}
-              >
-                ¿Olvidaste tu contraseña?
-              </a>
-            </div>
-          )}
-          <button type="submit" className="btn-submit">{isRegister ? 'Registrarse' : 'Ingresar'}</button>
+          <button type="submit" className="btn-submit" disabled={submitting}>
+            {submitting ? 'Conectando…' : isRegister ? 'Registrarse' : 'Ingresar'}
+          </button>
         </form>
       </FormContainer>
     </main>

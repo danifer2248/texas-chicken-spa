@@ -14,11 +14,17 @@ const hasValidUrl = (value) => {
 }
 
 const configurationError = isPlaceholder(supabaseUrl)
-  ? 'Configura VITE_SUPABASE_URL en .env.local con la URL de tu proyecto Supabase.'
+  ? import.meta.env.PROD
+    ? 'Falta VITE_SUPABASE_URL en el build publicado. Configúrala en GitHub Actions → Variables y vuelve a desplegar.'
+    : 'Configura VITE_SUPABASE_URL en .env.local con la URL de tu proyecto Supabase.'
   : !hasValidUrl(supabaseUrl)
-    ? 'VITE_SUPABASE_URL no parece una URL válida de Supabase. Revísala en .env.local.'
+    ? import.meta.env.PROD
+      ? 'VITE_SUPABASE_URL no parece una URL válida de Supabase. Revísala en GitHub Actions → Variables y vuelve a desplegar.'
+      : 'VITE_SUPABASE_URL no parece una URL válida de Supabase. Revísala en .env.local.'
     : isPlaceholder(supabaseAnonKey)
-      ? 'Configura VITE_SUPABASE_ANON_KEY en .env.local con la clave publicable o anon de tu proyecto.'
+      ? import.meta.env.PROD
+        ? 'Falta VITE_SUPABASE_ANON_KEY en el build publicado. Configúrala en GitHub Actions → Variables y vuelve a desplegar.'
+        : 'Configura VITE_SUPABASE_ANON_KEY en .env.local con la clave publicable o anon de tu proyecto.'
       : null
 
 export const supabase = !configurationError

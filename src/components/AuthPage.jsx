@@ -22,6 +22,7 @@ export function AuthPage({ page, redirectReason, onAuthenticated }) {
 
   const submit = async (event) => {
     event.preventDefault()
+    if (submitting) return
     setFormError('')
     setNotice('')
     const nextErrors = {}
@@ -29,6 +30,7 @@ export function AuthPage({ page, redirectReason, onAuthenticated }) {
     if (!values.email.trim()) nextErrors.email = 'Este campo es obligatorio.'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) nextErrors.email = 'Escribe un correo válido.'
     if (!values.password) nextErrors.password = 'Este campo es obligatorio.'
+    else if (isRegister && values.password.length < 8) nextErrors.password = 'Usa una contraseña de al menos 8 caracteres.'
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
 

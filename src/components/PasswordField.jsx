@@ -27,6 +27,7 @@ function FormPasswordGroup({ id, value, onChange, error, visible, onToggle }) {
           value={value}
           onChange={onChange}
           required
+          minLength={8}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
           style={error ? { borderColor: 'var(--primary-red)' } : undefined}

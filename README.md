@@ -13,31 +13,32 @@ Copy-Item .env.example .env.local # PowerShell; en macOS/Linux: cp .env.example 
 
 Completa `.env.local` con la URL del proyecto y su clave `publishable` o `anon`. El archivo real está ignorado por Git. No pongas una clave `service_role`, una clave secreta ni la contraseña de Postgres en variables `VITE_*`.
 
+En Supabase, abre el proyecto existente. Copia la **Project URL** desde **Project Settings → API** y la clave **Publishable** (o `anon` legacy) desde **Project Settings → API Keys**. Colócalas así en `.env.local`:
+
+```dotenv
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<publishable-or-anon-key>
+```
+
+Reinicia `npm run dev` después de cambiar las variables. No uses una clave `secret` o `service_role`.
+
 ## Proyecto Supabase y migraciones
 
-La CLI se instala localmente como dependencia de desarrollo. Desde la raíz:
+La CLI se instala localmente como dependencia de desarrollo. Para enlazar y revisar el proyecto existente (no crees otro ni apliques la migración inicial a ciegas):
 
 ```sh
 npx supabase --version
 npx supabase login
-npx supabase orgs list
 npx supabase projects list
-```
-
-Consulta la lista antes de crear un proyecto. Si no existe uno para esta aplicación y hay cupo del plan gratuito, inicializa/enlaza el CLI con la organización y referencia correctas:
-
-```sh
-npx supabase init
-npx supabase projects create "texas-chicken-spa" --org-id "<ORG_ID>" --region "<REGION>"
 npx supabase link --project-ref "<PROJECT_REF>"
-npx supabase db push --dry-run --remote
-npx supabase db push --remote
 npx supabase migration list --remote
 ```
 
-Sigue el prompt seguro del CLI para la contraseña de base de datos. Revisa que el nombre y la referencia mostrados por CLI sean los de esta aplicación antes de enlazar o aplicar cambios. La migración `supabase/migrations/20261115000000_initial_schema.sql` crea el esquema, las políticas RLS, RPCs transaccionales y el catálogo inicial. Los productos se insertan de forma idempotente en esa migración; no se depende de que `db push` ejecute `seed.sql`.
+Comprueba en el Dashboard que el esquema esperado ya existe antes de considerar cualquier migración. La migración inicial crea tablas, políticas y RPCs y no debe ejecutarse sobre datos existentes sin comparar el esquema primero. No se hicieron cambios a la base de datos desde este entorno.
 
-El frontend solo accede con la clave publicable y RLS. Supabase Auth requiere habilitar correo/contraseña y permitir el callback de la app en la configuración de URLs de Auth. El flujo de registro muestra un aviso para confirmar el correo si el proyecto exige confirmación.
+La migración `supabase/migrations/20261115000000_initial_schema.sql` define el esquema, las políticas RLS, RPCs transaccionales y el catálogo inicial para una instalación compatible. No la apliques al proyecto existente sin revisar antes su historial y comparar las tablas y funciones.
+
+El frontend solo accede con la clave publicable y RLS. En **Authentication → Providers → Email**, habilita Email y el registro por correo/contraseña. Define la longitud mínima de contraseña como 8. En **Authentication → URL Configuration**, usa `http://localhost:5173/` como Site URL durante desarrollo y permite como Redirect URLs `http://localhost:5173/**` y `https://danifer2248.github.io/texas-chicken-spa/**`. Si se activa la confirmación de correo, configura SMTP para entrega fiable; el formulario avisa que debe confirmarse el correo. El perfil se inserta automáticamente mediante el trigger `on_auth_user_created`; no hace falta habilitar inserciones de perfil desde el navegador.
 
 Después de registrar la cuenta que administrará el catálogo, asígnale el rol desde Supabase SQL Editor como responsable del proyecto (sustituye el correo localmente):
 
@@ -49,7 +50,7 @@ on conflict (user_id) do update set role = excluded.role;
 
 La interfaz no puede crear ni modificar roles. `staff` puede gestionar el estado de pedidos; `admin` también administra productos.
 
-Para desplegar en GitHub Pages, define las variables de repositorio `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` con valores publicables. No configures claves privadas en el bundle.
+Para desplegar en GitHub Pages, crea las variables de repositorio `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en **Settings → Secrets and variables → Actions → Variables**. El workflow ya las inyecta durante `npm run build`. La URL y clave publicable son visibles en el bundle del navegador por diseño; nunca coloques claves `secret`, `service_role` ni contraseñas en esas variables.
 
 ## Desarrollo y compilación
 

@@ -52,9 +52,9 @@ export function AuthPage({ page, redirectReason, onAuthenticated }) {
       if (result.data.session) {
         onAuthenticated()
       } else if (isRegister) {
-        setNotice('Revisa tu correo para confirmar la cuenta y luego inicia sesión.')
+        setNotice('La cuenta no inició sesión automáticamente. Revisa en Supabase que la opción Confirm email esté desactivada para el proveedor Email.')
       } else {
-        setNotice('Si la cuenta requiere confirmación, revisa tu correo antes de iniciar sesión.')
+        setNotice('No se inició sesión. Verifica que el correo y la contraseña sean correctos.')
       }
     } catch (error) {
       const message = error?.message || ''

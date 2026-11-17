@@ -57,7 +57,15 @@ export function AuthPage({ page, redirectReason, onAuthenticated }) {
         setNotice('Si la cuenta requiere confirmación, revisa tu correo antes de iniciar sesión.')
       }
     } catch (error) {
-      setFormError(error.message || 'No se pudo completar la autenticación.')
+      const message = error?.message || ''
+      const errorCode = error?.code || ''
+      if (errorCode === 'email_address_invalid' || /email address .* is invalid/i.test(message)) {
+        setFormError('Supabase rechazó esta dirección de correo. Comprueba que esté escrita correctamente y que sea una cuenta real que pueda recibir correo. Si el error continúa con una dirección válida, consulta Authentication → Logs en Supabase.')
+      } else if (/failed to fetch|networkerror|load failed/i.test(message)) {
+        setFormError('No se recibió respuesta de Supabase. Comprueba la conexión y vuelve a intentarlo. Si continúa, revisa el detalle de la solicitud en las herramientas de red del navegador.')
+      } else {
+        setFormError(message || 'No se pudo completar la autenticación.')
+      }
     } finally {
       setSubmitting(false)
     }
